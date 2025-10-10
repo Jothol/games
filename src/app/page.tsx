@@ -1,3 +1,6 @@
+// src/app/page.tsx
+"use client";
+
 export default function Home() {
   return (
     <main className="min-h-screen flex items-center justify-center p-6">
@@ -5,7 +8,11 @@ export default function Home() {
         className="flex gap-3"
         onSubmit={(e) => {
           e.preventDefault();
-          const name = new FormData(e.currentTarget).get("name")?.toString().trim().toLowerCase();
+          const name = new FormData(e.currentTarget)
+            .get("name")
+            ?.toString()
+            .trim()
+            .toLowerCase();
           if (!name) return;
           if (name === "admin") window.location.href = "/admin";
           else if (name === "display") window.location.href = "/display";
