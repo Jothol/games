@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { db } from "@/lib/firebase";
 import { doc, getDoc, onSnapshot, setDoc } from "firebase/firestore";
@@ -8,7 +8,7 @@ import type { GameState, Player } from "@/types";
 
 const STATE_DOC_ID = "global";
 
-export default function PlayerPage() {
+function PlayerInner() {
   const params = useSearchParams();
   const nameParam = (params.get("name") || "").trim();
   const playerId = nameParam.toLowerCase();
@@ -61,7 +61,6 @@ export default function PlayerPage() {
           else setSubmittedForRound(null);
         }
       );
-      // cleanup for inner subscription
       return () => aUnsub();
     });
     return () => unsub();
@@ -123,5 +122,13 @@ export default function PlayerPage() {
         <p className="text-gray-600">Scoring in progress…</p>
       )}
     </main>
+  );
+}
+
+export default function PlayerPage() {
+  return (
+    <Suspense fallback={<main className="min-h-screen p-6">Loading…</main>}>
+      <PlayerInner />
+    </Suspense>
   );
 }
