@@ -16,7 +16,8 @@ import {
 } from "firebase/firestore";
 import type { GameState, Player, RoundDoc, Answer, Question } from "@/app/trivia/types";
 
-const STATE_DOC_ID = "global"; // /state/global
+const STATE_DOC_ID = "global"; // /trivia/{triviaId}/state/global
+const TRIVIA_ID = "default";   // TODO: swap to dynamic (e.g., from URL or settings)
 
 export default function AdminPage() {
   const [players, setPlayers] = useState<{ id: string; data: Player }[]>([]);
@@ -34,41 +35,43 @@ export default function AdminPage() {
     if (!confirm("This will delete all players, rounds, answers, questions, and reset state. Continue?")) return;
 
     // Delete subcollections (answers) under each round
-    const roundsSnap = await getDocs(collection(db, "rounds"));
+    const roundsSnap = await getDocs(collection(db, "trivia", TRIVIA_ID, "rounds"));
     for (const r of roundsSnap.docs) {
-        const ansSnap = await getDocs(collection(db, "rounds", r.id, "answers"));
-        for (const a of ansSnap.docs) {
+      const ansSnap = await getDocs(collection(db, "trivia", TRIVIA_ID, "rounds", r.id, "answers"));
+      for (const a of ansSnap.docs) {
         await deleteDoc(a.ref);
-        }
-        await deleteDoc(r.ref);
+      }
+      await deleteDoc(r.ref);
     }
 
-    // Delete top-level collections
-    const playersSnap = await getDocs(collection(db, "players"));
+    // Delete nested top-level (within trivia/{triviaId})
+    const playersSnap = await getDocs(collection(db, "trivia", TRIVIA_ID, "players"));
     for (const p of playersSnap.docs) await deleteDoc(p.ref);
 
-    const questionsSnap = await getDocs(collection(db, "questions"));
+    const questionsSnap = await getDocs(collection(db, "trivia", TRIVIA_ID, "questions"));
     for (const q of questionsSnap.docs) await deleteDoc(q.ref);
 
     // Reset state/global
-    await setDoc(doc(db, "state", STATE_DOC_ID), {
-        status: "lobby",
-        currentRoundId: null,
-        timerEnabled: false,
-        timerSec: 30,
-        roundEndsAt: null,
-        reveal: false,
-        roundIndex: 0,
+    await setDoc(doc(db, "trivia", TRIVIA_ID, "state", STATE_DOC_ID), {
+      status: "lobby",
+      currentRoundId: null,
+      timerEnabled: false,
+      timerSec: 30,
+      roundEndsAt: null,
+      reveal: false,
+      roundIndex: 0,
     } as GameState);
 
-    // Optional: toast/alert
     alert("Game reset complete.");
     setCorrectIds(new Set());
-    }
+  }
 
   // Live players list
   useEffect(() => {
-    const q = query(collection(db, "players"), orderBy("joinedAt", "asc"));
+    const q = query(
+      collection(db, "trivia", TRIVIA_ID, "players"),
+      orderBy("joinedAt", "asc")
+    );
     return onSnapshot(q, (snap) => {
       setPlayers(snap.docs.map((d) => ({ id: d.id, data: d.data() as Player })));
     });
@@ -76,7 +79,10 @@ export default function AdminPage() {
 
   // Live questions list
   useEffect(() => {
-    const q = query(collection(db, "questions"), orderBy("addedAt", "asc"));
+    const q = query(
+      collection(db, "trivia", TRIVIA_ID, "questions"),
+      orderBy("addedAt", "asc")
+    );
     return onSnapshot(q, (snap) => {
       setQuestions(
         snap.docs.map((d) => ({ id: d.id, data: d.data() as Question }))
@@ -84,9 +90,9 @@ export default function AdminPage() {
     });
   }, []);
 
-  // Live game state + round answers
+  // Live game state
   useEffect(() => {
-    const unsubState = onSnapshot(doc(db, "state", STATE_DOC_ID), (d) => {
+    const unsubState = onSnapshot(doc(db, "trivia", TRIVIA_ID, "state", STATE_DOC_ID), (d) => {
       const data = d.data() as GameState | undefined;
       if (!data) {
         const init: GameState = {
@@ -98,7 +104,7 @@ export default function AdminPage() {
           reveal: false,
           roundIndex: 0,
         };
-        setDoc(doc(db, "state", STATE_DOC_ID), init);
+        setDoc(doc(db, "trivia", TRIVIA_ID, "state", STATE_DOC_ID), init);
         return;
       }
       setGs(data);
@@ -118,7 +124,7 @@ export default function AdminPage() {
       return;
     }
     const q = query(
-      collection(db, "rounds", gs.currentRoundId, "answers"),
+      collection(db, "trivia", TRIVIA_ID, "rounds", gs.currentRoundId, "answers"),
       orderBy("submittedAt", "asc")
     );
     const unsub = onSnapshot(q, (snap) => {
@@ -137,7 +143,7 @@ export default function AdminPage() {
   async function handleAddQuestion() {
     const text = questionInput.trim();
     if (!text) return;
-    await addDoc(collection(db, "questions"), {
+    await addDoc(collection(db, "trivia", TRIVIA_ID, "questions"), {
       text,
       addedAt: Date.now(),
     } as Question);
@@ -147,7 +153,7 @@ export default function AdminPage() {
   async function beginGame() {
     // pull next question (first in queue)
     const qsSnap = await getDocs(
-      query(collection(db, "questions"), orderBy("addedAt", "asc"))
+      query(collection(db, "trivia", TRIVIA_ID, "questions"), orderBy("addedAt", "asc"))
     );
     if (qsSnap.empty) {
       alert("Add at least one question first.");
@@ -156,7 +162,7 @@ export default function AdminPage() {
     const first = qsSnap.docs[0];
 
     // create round
-    const roundRef = await addDoc(collection(db, "rounds"), {
+    const roundRef = await addDoc(collection(db, "trivia", TRIVIA_ID, "rounds"), {
       index: 0,
       questionText: (first.data() as Question).text,
       createdAt: Date.now(),
@@ -177,15 +183,15 @@ export default function AdminPage() {
       reveal: false,
       roundIndex: 0,
     };
-    await setDoc(doc(db, "state", STATE_DOC_ID), newState);
+    await setDoc(doc(db, "trivia", TRIVIA_ID, "state", STATE_DOC_ID), newState);
   }
 
   async function endRound() {
     if (!gs?.currentRoundId) return;
-    await updateDoc(doc(db, "rounds", gs.currentRoundId), {
+    await updateDoc(doc(db, "trivia", TRIVIA_ID, "rounds", gs.currentRoundId), {
       closedAt: Date.now(),
     });
-    await updateDoc(doc(db, "state", STATE_DOC_ID), {
+    await updateDoc(doc(db, "trivia", TRIVIA_ID, "state", STATE_DOC_ID), {
       status: "scoring",
       roundEndsAt: null,
     });
@@ -205,13 +211,13 @@ export default function AdminPage() {
     const batch = players
       .filter((p) => correctIds.has(p.id))
       .map((p) =>
-        updateDoc(doc(db, "players", p.id), {
+        updateDoc(doc(db, "trivia", TRIVIA_ID, "players", p.id), {
           score: (p.data.score || 0) + 1,
         })
       );
     await Promise.all(batch);
     // reveal on display
-    await updateDoc(doc(db, "state", STATE_DOC_ID), { reveal: true });
+    await updateDoc(doc(db, "trivia", TRIVIA_ID, "state", STATE_DOC_ID), { reveal: true });
   }
 
   async function nextRound() {
@@ -219,7 +225,7 @@ export default function AdminPage() {
     const nextIndex = (gs.roundIndex ?? 0) + 1;
 
     const qsSnap = await getDocs(
-      query(collection(db, "questions"), orderBy("addedAt", "asc"))
+      query(collection(db, "trivia", TRIVIA_ID, "questions"), orderBy("addedAt", "asc"))
     );
     if (qsSnap.empty) {
       alert("No more questions in queue.");
@@ -227,7 +233,7 @@ export default function AdminPage() {
     }
     const first = qsSnap.docs[0];
 
-    const roundRef = await addDoc(collection(db, "rounds"), {
+    const roundRef = await addDoc(collection(db, "trivia", TRIVIA_ID, "rounds"), {
       index: nextIndex,
       questionText: (first.data() as Question).text,
       createdAt: Date.now(),
@@ -247,7 +253,7 @@ export default function AdminPage() {
       reveal: false,
       roundIndex: nextIndex,
     };
-    await setDoc(doc(db, "state", STATE_DOC_ID), newState);
+    await setDoc(doc(db, "trivia", TRIVIA_ID, "state", STATE_DOC_ID), newState);
     setCorrectIds(new Set());
   }
 
@@ -344,9 +350,9 @@ export default function AdminPage() {
           <button
             className="bg-red-700 text-white px-4 py-2 rounded"
             onClick={endGameAndWipe}
-            >
+          >
             End Game (wipe & reset)
-            </button>
+          </button>
         </div>
         <div className="text-sm text-gray-600">
           <div>Status: {gs?.status ?? "—"}</div>

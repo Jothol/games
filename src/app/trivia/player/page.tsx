@@ -6,7 +6,8 @@ import { db } from "@/lib/firebase";
 import { doc, getDoc, onSnapshot, setDoc } from "firebase/firestore";
 import type { GameState, Player } from "@/app/trivia/types";
 
-const STATE_DOC_ID = "global";
+const STATE_DOC_ID = "global";   // /trivia/{triviaId}/state/global
+const TRIVIA_ID = "default";     // TODO: make dynamic later if you want multiple trivia rooms
 
 function PlayerInner() {
   const params = useSearchParams();
@@ -22,7 +23,7 @@ function PlayerInner() {
   useEffect(() => {
     if (!playerId) return;
     (async () => {
-      const pref = doc(db, "players", playerId);
+      const pref = doc(db, "trivia", TRIVIA_ID, "players", playerId);
       const snap = await getDoc(pref);
       if (!snap.exists()) {
         await setDoc(pref, {
@@ -38,7 +39,7 @@ function PlayerInner() {
   // Subscribe to player document
   useEffect(() => {
     if (!playerId) return;
-    const unsub = onSnapshot(doc(db, "players", playerId), (d) => {
+    const unsub = onSnapshot(doc(db, "trivia", TRIVIA_ID, "players", playerId), (d) => {
       if (d.exists()) setPlayer(d.data() as Player);
     });
     return () => unsub();
@@ -46,7 +47,7 @@ function PlayerInner() {
 
   // Subscribe to game state and my answer for current round
   useEffect(() => {
-    const unsub = onSnapshot(doc(db, "state", STATE_DOC_ID), (d) => {
+    const unsub = onSnapshot(doc(db, "trivia", TRIVIA_ID, "state", STATE_DOC_ID), (d) => {
       const data = d.data() as GameState | undefined;
       setGs(data ?? null);
 
@@ -55,7 +56,7 @@ function PlayerInner() {
         return;
       }
       const aUnsub = onSnapshot(
-        doc(db, "rounds", data.currentRoundId, "answers", playerId),
+        doc(db, "trivia", TRIVIA_ID, "rounds", data.currentRoundId, "answers", playerId),
         (ad) => {
           if (ad.exists()) setSubmittedForRound(data.currentRoundId);
           else setSubmittedForRound(null);
@@ -74,12 +75,15 @@ function PlayerInner() {
   async function submitAnswer() {
     if (!gs?.currentRoundId || !playerId) return;
     const text = answer.trim();
-    await setDoc(doc(db, "rounds", gs.currentRoundId, "answers", playerId), {
-      playerId,
-      name: player?.name ?? nameParam,
-      answerText: text,
-      submittedAt: Date.now(),
-    });
+    await setDoc(
+      doc(db, "trivia", TRIVIA_ID, "rounds", gs.currentRoundId, "answers", playerId),
+      {
+        playerId,
+        name: player?.name ?? nameParam,
+        answerText: text,
+        submittedAt: Date.now(),
+      }
+    );
     setAnswer("");
   }
 

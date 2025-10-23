@@ -5,7 +5,8 @@ import { db } from "@/lib/firebase";
 import { collection, doc, onSnapshot, orderBy, query } from "firebase/firestore";
 import type { Answer, GameState, Player, RoundDoc } from "@/app/trivia/types";
 
-const STATE_DOC_ID = "global";
+const STATE_DOC_ID = "global";   // /trivia/{triviaId}/state/global
+const TRIVIA_ID = "default";     // TODO: make dynamic if you support multiple rooms
 
 export default function DisplayPage() {
   const [gs, setGs] = useState<GameState | null>(null);
@@ -15,13 +16,13 @@ export default function DisplayPage() {
   const [now, setNow] = useState(Date.now());
 
   useEffect(() => {
-    const unsub = onSnapshot(doc(db, "state", STATE_DOC_ID), (d) => {
+    const unsub = onSnapshot(doc(db, "trivia", TRIVIA_ID, "state", STATE_DOC_ID), (d) => {
       const data = d.data() as GameState | undefined;
       setGs(data ?? null);
 
       if (data?.currentRoundId) {
         const rUnsub = onSnapshot(
-          doc(db, "rounds", data.currentRoundId),
+          doc(db, "trivia", TRIVIA_ID, "rounds", data.currentRoundId),
           (rd) => {
             const r = rd.data() as RoundDoc | undefined;
             setRoundQ(r?.questionText ?? "");
@@ -29,7 +30,7 @@ export default function DisplayPage() {
         );
         const aUnsub = onSnapshot(
           query(
-            collection(db, "rounds", data.currentRoundId, "answers"),
+            collection(db, "trivia", TRIVIA_ID, "rounds", data.currentRoundId, "answers"),
             orderBy("submittedAt", "asc")
           ),
           (snap) => {
@@ -51,7 +52,10 @@ export default function DisplayPage() {
   }, []);
 
   useEffect(() => {
-    const qPlayers = query(collection(db, "players"), orderBy("joinedAt", "asc"));
+    const qPlayers = query(
+      collection(db, "trivia", TRIVIA_ID, "players"),
+      orderBy("joinedAt", "asc")
+    );
     return onSnapshot(qPlayers, (snap) => {
       setPlayers(
         snap.docs.map((d) => ({ id: d.id, data: d.data() as Player }))
