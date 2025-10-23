@@ -4,7 +4,7 @@ import { Suspense, useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { db } from "@/lib/firebase";
 import { doc, getDoc, onSnapshot, setDoc } from "firebase/firestore";
-import type { GameState, Player } from "@/types";
+import type { GameState, Player } from "@/app/trivia/types";
 
 const STATE_DOC_ID = "global";
 

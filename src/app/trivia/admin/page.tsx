@@ -14,7 +14,7 @@ import {
   setDoc,
   updateDoc,
 } from "firebase/firestore";
-import type { GameState, Player, RoundDoc, Answer, Question } from "@/types";
+import type { GameState, Player, RoundDoc, Answer, Question } from "@/app/trivia/types";
 
 const STATE_DOC_ID = "global"; // /state/global
 

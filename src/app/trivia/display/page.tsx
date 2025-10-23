@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { db } from "@/lib/firebase";
 import { collection, doc, onSnapshot, orderBy, query } from "firebase/firestore";
-import type { Answer, GameState, Player, RoundDoc } from "@/types";
+import type { Answer, GameState, Player, RoundDoc } from "@/app/trivia/types";
 
 const STATE_DOC_ID = "global";
 
